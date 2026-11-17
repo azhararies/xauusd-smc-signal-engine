@@ -17,8 +17,8 @@ import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 from smc_features import calculate_all_smc
 
-DATA_2024  = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2024_all.csv"
-DATA_2025  = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2025_all.csv"
+DATA_2024  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2024_all.csv")
+DATA_2025  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2025_all.csv")
 TIMEFRAME  = 'M5'
 
 CONFIDENCE    = 0.60     # XGBoost predict_proba threshold
@@ -32,12 +32,12 @@ def load_resample():
     df25 = pd.read_csv(DATA_2025, sep=',', names=cols)
     df = pd.concat([df24, df25], ignore_index=True)
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
-    df.set_index('Datetime', inplace=True)
-    df.drop(columns=['Date','Time'], inplace=True)
+    df = df.set_index('Datetime')
+    df = df.drop(columns=['Date','Time'])
     for c in ['Open','High','Low','Close','Volume']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
-    df.dropna(inplace=True)
-    df.sort_index(inplace=True)
+    df = df.dropna()
+    df = df.sort_index()
     df = df.resample('5min').agg({'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}).dropna()
     return df
 
@@ -78,7 +78,7 @@ XGB_FEATURES  = [
 
 def train_xgboost(df):
     df2 = df.replace([np.inf, -np.inf], np.nan).dropna(subset=XGB_FEATURES + ['Target'])
-    df2.reset_index(drop=True, inplace=True)
+    df2 = df2.reset_index(drop=True)
 
     split = int(len(df2) * 0.8)
     X_train = df2[XGB_FEATURES].iloc[:split]

@@ -2,6 +2,7 @@
 grid_search_sltp.py - Tự động tìm SL/TP Factor tối ưu cho EV dương
 Chạy 1 lần duy nhất để tìm ra cấu hình tốt nhất, không cần đoán mò.
 """
+import os
 import pandas as pd
 import numpy as np
 import warnings
@@ -9,8 +10,8 @@ warnings.filterwarnings('ignore')
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.preprocessing import MinMaxScaler
 
-DATA_2024 = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2024_all.csv"
-DATA_2025 = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2025_all.csv"
+DATA_2024 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2024_all.csv")
+DATA_2025 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2025_all.csv")
 
 TIMEFRAME         = 'M5'      # Có thể đổi M15 hoặc M1
 CONFIDENCE        = 0.62
@@ -27,12 +28,12 @@ def load_and_prepare():
     df25 = pd.read_csv(DATA_2025, sep=',', names=cols)
     df = pd.concat([df24, df25], ignore_index=True)
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
-    df.set_index('Datetime', inplace=True)
-    df.drop(columns=['Date','Time'], inplace=True)
+    df = df.set_index('Datetime')
+    df = df.drop(columns=['Date','Time'])
     for c in ['Open','High','Low','Close','Volume']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
-    df.dropna(inplace=True)
-    df.sort_index(inplace=True)
+    df = df.dropna()
+    df = df.sort_index()
     # Resample → M5
     df = df.resample('5min').agg({'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}).dropna()
 
@@ -57,13 +58,13 @@ def load_and_prepare():
     df['Is_Active']  = np.where(((df['Hour'] >= 7) & (df['Hour'] < 21)), 1, 0)
     df['Target_Vol'] = (df['High'].shift(-1) - df['Low'].shift(-1))
     df['Target_Dir'] = np.where((df['Close'].shift(-1) - df['Open'].shift(-1)) > 0, 1, 0)
-    df.dropna(inplace=True)
-    df.reset_index(inplace=True)   # Giữ Datetime như cột thường để duyệt nhanh
+    df = df.dropna()
+    df = df.reset_index()   # Giữ Datetime như cột thường để duyệt nhanh
     return df
 
 def train(df):
     df2 = df.replace([np.inf, -np.inf], np.nan).dropna(subset=FEATURES + ['Target_Dir', 'Target_Vol'])
-    df2.reset_index(drop=True, inplace=True)
+    df2 = df2.reset_index(drop=True)
     X = df2[FEATURES].values
     scaler = MinMaxScaler()
     X_s = scaler.fit_transform(X)
@@ -80,7 +81,8 @@ def train(df):
 
 def run_backtest_with_factors(test_df, sl_f, rr):
     """Chạy backtest nhanh với 1 bộ SL_Factor + RR"""
-    wins = losses = 0
+    wins = losses = timeouts = 0
+    r_total = 0.0
     i = 0
     while i < len(test_df) - MAX_BARS_HOLD:
         row = test_df.iloc[i]
@@ -118,18 +120,25 @@ def run_backtest_with_factors(test_df, sl_f, rr):
                 if bar['High'] >= sl: outcome = 'LOSS'; break
                 if bar['Low']  <= tp: outcome = 'WIN';  break
 
-        if outcome == 'OPEN': outcome = 'LOSS'
-        if outcome == 'WIN': wins += 1
-        else: losses += 1
+        if outcome == 'WIN':
+            wins += 1; r_total += rr
+        elif outcome == 'LOSS':
+            losses += 1; r_total -= 1.0
+        else:
+            # Timeout: đóng lệnh tại giá Close của nến cuối, tính R thực tế
+            exit_price = test_df.iloc[i + bars_held]['Close']
+            move = (exit_price - entry) if direction == 'L' else (entry - exit_price)
+            r_total += move / sl_dist
+            timeouts += 1
         i += (bars_held or 1) + 1
 
-    total = wins + losses
+    total = wins + losses + timeouts
     if total < 10:
         return None   # Không đủ lệnh để đánh giá
     wr = wins / total
-    ev = wr * rr - (1 - wr)
-    return {'sl_f': sl_f, 'rr': rr, 'wins': wins, 'losses': losses, 'total': total,
-            'winrate': wr, 'ev': ev}
+    ev = r_total / total
+    return {'sl_f': sl_f, 'rr': rr, 'wins': wins, 'losses': losses, 'timeouts': timeouts,
+            'total': total, 'winrate': wr, 'ev': ev}
 
 if __name__ == "__main__":
     print("[*] Load & Prepare M5 data...")
@@ -144,8 +153,8 @@ if __name__ == "__main__":
     print(f"\n{'='*65}")
     print(f" GRID SEARCH: SL_Factor × R:R (SL tối thiểu ≥ {MIN_SL_PRICE_DIST} price pts)")
     print(f"{'='*65}")
-    print(f"{'SL_F':>6} | {'R:R':>5} | {'Lệnh':>6} | {'WR%':>7} | {'EV/trade':>10} | {'Đánh giá':>12}")
-    print('-' * 65)
+    print(f"{'SL_F':>6} | {'R:R':>5} | {'Lệnh':>6} | {'WR%':>7} | {'Timeout':>7} | {'EV/trade':>10} | {'Đánh giá':>12}")
+    print('-' * 75)
 
     results = []
     for sl_f in sl_factors:
@@ -155,7 +164,7 @@ if __name__ == "__main__":
                 continue
             ev_str = f"{r['ev']:+.3f}R"
             rating = "✅ EV DƯƠNG!" if r['ev'] > 0.05 else ("⚠️ Hòa vốn" if r['ev'] > -0.05 else "❌ EV âm")
-            print(f"  {sl_f:>4.1f}× | {rr:>4.1f} | {r['total']:>6} | {r['winrate']*100:>6.1f}% | {ev_str:>10} | {rating}")
+            print(f"  {sl_f:>4.1f}× | {rr:>4.1f} | {r['total']:>6} | {r['winrate']*100:>6.1f}% | {r['timeouts']:>7} | {ev_str:>10} | {rating}")
             results.append(r)
 
     # Tìm cấu hình tốt nhất theo EV
@@ -165,7 +174,7 @@ if __name__ == "__main__":
         print(f"\n{'='*65}")
         print(f"🏆 TỐT NHẤT: SL = {best['sl_f']}× ATR | R:R = 1:{best['rr']}")
         print(f"   Winrate: {best['winrate']*100:.1f}% | EV: {best['ev']:+.3f}R/lệnh")
-        print(f"   Tổng lệnh: {best['total']} (Win:{best['wins']}, Loss:{best['losses']})")
+        print(f"   Tổng lệnh: {best['total']} (Win:{best['wins']}, Loss:{best['losses']}, Timeout:{best['timeouts']})")
         print(f"   Với ATR M5 trung bình ~2.5 pip → SL ~{best['sl_f']*2.5:.1f} price points")
         print(f"{'='*65}")
     else:

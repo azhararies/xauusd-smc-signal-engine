@@ -5,6 +5,7 @@ Lý do dùng M15 thay M1:
 - M15 mỗi nến tóm tắt 15 phút thị trường -> ít noise hơn, feature ý nghĩa hơn
 - SL/TP theo Zigzag M15 xa hơn, ít bị quét bởi noise spread
 """
+import os
 import pandas as pd
 import numpy as np
 import warnings
@@ -13,7 +14,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import classification_report
 
-M15_CSV = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_M15.csv"
+M15_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_M15.csv")
 
 def load_m15():
     df = pd.read_csv(M15_CSV, index_col='Datetime', parse_dates=True)
@@ -50,7 +51,7 @@ def feature_engineering(df):
     df['Next_Ret'] = df['Close'].shift(-1) - df['Open'].shift(-1)
     df['Target']   = np.where(df['Next_Ret'] > 0, 1, 0)
     
-    df.dropna(inplace=True)
+    df = df.dropna()
     return df
 
 def find_swing_low(df_window, lookback=10):
@@ -107,7 +108,9 @@ def run():
     print("\n--- GRID SEARCH THRESHOLD (M15) ---")
     print(f"{'Thr':>6} | {'Lệnh':>6} | {'Winrate':>8} | {'Lệnh/Tháng':>12}")
     print('-' * 45)
-    N_MONTHS = len(test_df) / (4 * 24 * 22)  # M15 bars in 1 month trading
+    # Số tháng thực tế của test set, tính từ ngày đầu → ngày cuối
+    N_MONTHS = (test_df.index[-1] - test_df.index[0]).total_seconds() / (86400 * 30.44)
+    print(f"Test set: {test_df.index[0]} → {test_df.index[-1]} ({N_MONTHS:.2f} tháng)")
     for thr in [0.50, 0.52, 0.55, 0.58, 0.60, 0.62, 0.65, 0.70]:
         buy  = (test_df['Prob_Up'] >= thr) & (test_df['Trend_Up'] == 1)
         sell = (test_df['Prob_Up'] <= 1 - thr) & (test_df['Trend_Up'] == -1)

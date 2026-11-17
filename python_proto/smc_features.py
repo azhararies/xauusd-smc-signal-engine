@@ -209,7 +209,7 @@ def calculate_all_smc(df, swing_lookback=5, ob_min_atr=1.5, dist_lookback=50):
 if __name__ == "__main__":
     # Quick test
     import pandas as pd, numpy as np
-    from python_proto.resample import load_m1, resample_ohlcv
+    from resample import load_m1, resample_ohlcv
     df_m1 = load_m1()
     df_m5 = resample_ohlcv(df_m1, '5min').tail(5000)
     print(f"Test SMC trên {len(df_m5)} nến M5...")

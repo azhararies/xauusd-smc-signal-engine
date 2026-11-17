@@ -27,8 +27,8 @@ class PropFirmRules:
 @dataclass
 class TradeConfig:
     """Cấu hình hành vi giao dịch"""
-    winrate:            float = 0.6667
-    risk_reward:        float = 1.0        # R:R 1:1
+    winrate:            float = 0.47       # Walk-forward WR thực tế
+    risk_reward:        float = 1.5        # R:R 1:1.5
     risk_per_trade_pct: float = 1.0        # 1% tài khoản ban đầu / lệnh
     trades_per_day:     int   = 3
 
@@ -151,14 +151,14 @@ if __name__ == "__main__":
     )
 
     print("\n>>> KỊCH BẢN 1: Đánh Nhanh - Risk 1%/lệnh, 3 lệnh/ngày <<<")
-    s1 = run_monte_carlo(rules, TradeConfig(winrate=0.6667, risk_per_trade_pct=1.0, trades_per_day=3))
-    print_report("RISK 1% - TRAILING DD ON (FTMO Thực Tế)", s1, rules, TradeConfig(winrate=0.6667, risk_per_trade_pct=1.0))
+    s1 = run_monte_carlo(rules, TradeConfig(risk_per_trade_pct=1.0, trades_per_day=3))
+    print_report("RISK 1% - TRAILING DD ON (FTMO Thực Tế)", s1, rules, TradeConfig(risk_per_trade_pct=1.0))
 
     print("\n>>> KỊCH BẢN 2: An Toàn - Risk 0.5%/lệnh, 3 lệnh/ngày <<<")
-    s2 = run_monte_carlo(rules, TradeConfig(winrate=0.6667, risk_per_trade_pct=0.5, trades_per_day=3))
-    print_report("RISK 0.5% - TRAILING DD ON", s2, rules, TradeConfig(winrate=0.6667, risk_per_trade_pct=0.5))
+    s2 = run_monte_carlo(rules, TradeConfig(risk_per_trade_pct=0.5, trades_per_day=3))
+    print_report("RISK 0.5% - TRAILING DD ON", s2, rules, TradeConfig(risk_per_trade_pct=0.5))
 
     print("\n>>> KỊCH BẢN 3: So Sánh - Risk 1% nhưng Static DD (Không Trailing) <<<")
     rules_static = PropFirmRules(use_trailing_dd=False)
-    s3 = run_monte_carlo(rules_static, TradeConfig(winrate=0.6667, risk_per_trade_pct=1.0, trades_per_day=3))
-    print_report("RISK 1% - STATIC DD (Dễ hơn thực tế)", s3, rules_static, TradeConfig(winrate=0.6667, risk_per_trade_pct=1.0))
+    s3 = run_monte_carlo(rules_static, TradeConfig(risk_per_trade_pct=1.0, trades_per_day=3))
+    print_report("RISK 1% - STATIC DD (Dễ hơn thực tế)", s3, rules_static, TradeConfig(risk_per_trade_pct=1.0))

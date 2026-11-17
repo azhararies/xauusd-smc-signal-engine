@@ -9,11 +9,12 @@ Quy tắc OHLCV khi gộp nến:
 - Close = Đóng cửa của cây nến CUỐI trong nhóm (last)
 - Volume = Tổng khối lượng (sum)
 """
+import os
 import pandas as pd
 import numpy as np
 
-DATA_2024 = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2024_all.csv"
-DATA_2025 = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2025_all.csv"
+DATA_2024 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2024_all.csv")
+DATA_2025 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2025_all.csv")
 
 def load_m1():
     cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
@@ -23,13 +24,13 @@ def load_m1():
     
     # Chuyển Date + Time thành DateTime index - đây là bước quan trọng nhất
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
-    df.set_index('Datetime', inplace=True)
-    df.drop(columns=['Date', 'Time'], inplace=True)
+    df = df.set_index('Datetime')
+    df = df.drop(columns=['Date', 'Time'])
     
     for c in ['Open', 'High', 'Low', 'Close', 'Volume']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
-    df.dropna(inplace=True)
-    df.sort_index(inplace=True)
+    df = df.dropna()
+    df = df.sort_index()
     return df
 
 def resample_ohlcv(df_m1, timeframe='15min'):
@@ -46,7 +47,7 @@ def resample_ohlcv(df_m1, timeframe='15min'):
     }
     df_resampled = df_m1.resample(timeframe).agg(agg_dict)
     # Bỏ các nến trống (không có giao dịch - cuối tuần, nghỉ lễ)
-    df_resampled.dropna(inplace=True)
+    df_resampled = df_resampled.dropna()
     return df_resampled
 
 if __name__ == "__main__":
@@ -65,6 +66,6 @@ if __name__ == "__main__":
     print(df_h1.tail(3))
     
     # Lưu ra CSV để dùng cho training sau
-    df_m15.to_csv("d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_M15.csv")
-    df_h1.to_csv("d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_H1.csv")
+    df_m15.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_M15.csv"))
+    df_h1.to_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_H1.csv"))
     print("\n[+] Đã lưu XAUUSD_M15.csv và XAUUSD_H1.csv")

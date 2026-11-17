@@ -14,8 +14,8 @@ import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 from smc_features import calculate_all_smc
 
-DATA_2024  = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2024_all.csv"
-DATA_2025  = "d:/Cá nhân/Trading/Bot dự đoán cây nến tiếp theo/XAUUSD_2025_all.csv"
+DATA_2024  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2024_all.csv")
+DATA_2025  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "XAUUSD_2025_all.csv")
 
 CONFIDENCE    = 0.60
 MAX_BARS_HOLD = 30       # Max 30 nến M5 = 2.5h
@@ -39,12 +39,12 @@ def load_full_data():
     df25 = pd.read_csv(DATA_2025, sep=',', names=cols)
     df = pd.concat([df24, df25], ignore_index=True)
     df['Datetime'] = pd.to_datetime(df['Date']+' '+df['Time'], format='%Y.%m.%d %H:%M')
-    df.set_index('Datetime', inplace=True)
-    df.drop(columns=['Date','Time'], inplace=True)
+    df = df.set_index('Datetime')
+    df = df.drop(columns=['Date','Time'])
     for c in ['Open','High','Low','Close','Volume']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
-    df.dropna(inplace=True)
-    df.sort_index(inplace=True)
+    df = df.dropna()
+    df = df.sort_index()
     # Resample M5
     df = df.resample('5min').agg({'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}).dropna()
     return df
@@ -72,7 +72,7 @@ def add_features(df):
     df['Hour']       = df.index.hour
     df['Is_Active']  = np.where((df['Hour'] >= 7) & (df['Hour'] < 21), 1, 0)
     df['Target']     = np.where((df['Close'].shift(-1) - df['Open'].shift(-1)) > 0, 1, 0)
-    df.dropna(inplace=True)
+    df = df.dropna()
     return df
 
 def get_structural_sl(window_df, direction):
